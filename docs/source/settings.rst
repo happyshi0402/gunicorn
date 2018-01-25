@@ -123,12 +123,17 @@ A string referring to one of the following bundled classes:
 * ``gevent``   - Requires gevent >= 0.13
 * ``tornado``  - Requires tornado >= 0.2
 * ``gthread``  - Python 2 requires the futures package to be installed
-* ``gaiohttp`` - Requires Python 3.4 and aiohttp >= 0.21.5
+* ``gaiohttp`` - Deprecated.
 
 Optionally, you can provide your own worker by giving Gunicorn a
 Python path to a subclass of ``gunicorn.workers.base.Worker``.
 This alternative syntax will load the gevent class:
 ``gunicorn.workers.ggevent.GeventWorker``.
+
+.. deprecated:: 19.8
+   The ``gaiohttp`` worker is deprecated. Please use
+   ``aiohttp.worker.GunicornWebWorker`` instead. See
+   :ref:`asyncio-workers` for more information on how to use it.
 
 .. _threads:
 
@@ -149,6 +154,11 @@ application's work load.
 If it is not defined, the default is ``1``.
 
 This setting only affects the Gthread worker type.
+
+.. note::
+   If you try to use the ``sync`` worker type and set the ``threads``
+   setting to more than 1, the ``gthread`` worker type will be used
+   instead.
 
 .. _worker-connections:
 
@@ -234,7 +244,14 @@ keepalive
 
 The number of seconds to wait for requests on a Keep-Alive connection.
 
-Generally set in the 1-5 seconds range.
+Generally set in the 1-5 seconds range for servers with direct connection
+to the client (e.g. when you don't have separate load balancer). When
+Gunicorn is deployed behind a load balancer, it often makes sense to
+set this to a higher value.
+
+.. note::
+   ``sync`` worker does not support persistent connections and will
+   ignore this option.
 
 Security
 --------
@@ -320,6 +337,37 @@ because it consumes less system resources.
    In order to use the inotify reloader, you must have the ``inotify``
    package installed.
 
+.. _reload-engine:
+
+reload_engine
+~~~~~~~~~~~~~
+
+* ``--reload-engine STRING``
+* ``auto``
+
+The implementation that should be used to power :ref:`reload`.
+
+Valid engines are:
+
+* 'auto'
+* 'poll'
+* 'inotify' (requires inotify)
+
+.. versionadded:: 19.7
+
+.. _reload-extra-files:
+
+reload_extra_files
+~~~~~~~~~~~~~~~~~~
+
+* ``--reload-extra-file FILES``
+* ``[]``
+
+Extends :ref:`reload` option to also watch and reload on additional files
+(e.g., templates, configurations, specifications, etc.).
+
+.. versionadded:: 19.8
+
 .. _spew:
 
 spew
@@ -379,6 +427,18 @@ to enable or disable its usage.
    disabling.
 .. versionchanged:: 19.6
    added support for the ``SENDFILE`` environment variable
+
+.. _reuse-port:
+
+reuse_port
+~~~~~~~~~~
+
+* ``--reuse-port``
+* ``False``
+
+Set the ``SO_REUSEPORT`` flag on the listening socket.
+
+.. versionadded:: 19.8
 
 .. _chdir:
 
@@ -578,6 +638,18 @@ The Access log file to write to.
 
 ``'-'`` means log to stdout.
 
+.. _disable-redirect-access-to-syslog:
+
+disable_redirect_access_to_syslog
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+* ``--disable-redirect-access-to-syslog``
+* ``False``
+
+Disable redirect access logs to syslog.
+
+.. versionadded:: 19.8
+
 .. _access-log-format:
 
 access_log_format
@@ -715,6 +787,11 @@ syslog
 
 Send *Gunicorn* logs to syslog.
 
+.. versionchanged:: 19.8
+
+ You can now disable sending access logs by using the
+ :ref:`disable-redirect-access-to-syslog` setting.
+
 .. _syslog-prefix:
 
 syslog_prefix
@@ -771,7 +848,7 @@ statsd_prefix
 ~~~~~~~~~~~~~
 
 * ``--statsd-prefix STATSD_PREFIX``
-* ````
+* ``(empty string)``
 
 Prefix to use when emitting statsd metrics (a trailing ``.`` is added,
 if not provided).
@@ -1216,3 +1293,4 @@ The variables are passed to the the PasteDeploy entrypoint. Example::
     $ gunicorn -b 127.0.0.1:8000 --paste development.ini --paste-global FOO=1 --paste-global BAR=2
 
 .. versionadded:: 19.7
+

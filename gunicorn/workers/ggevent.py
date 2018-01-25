@@ -143,13 +143,21 @@ class GeventWorker(AsyncWorker):
 
             # Force kill all active the handlers
             self.log.warning("Worker graceful timeout (pid:%s)" % self.pid)
-            [server.stop(timeout=1) for server in servers]
+            for server in servers:
+                server.stop(timeout=1)
         except:
             pass
 
-    def handle_request(self, *args):
+    def handle(self, listener, client, addr):
+        # Connected socket timeout defaults to socket.getdefaulttimeout().
+        # This forces to blocking mode.
+        client.setblocking(1)
+        super(GeventWorker, self).handle(listener, client, addr)
+
+    def handle_request(self, listener_name, req, sock, addr):
         try:
-            super(GeventWorker, self).handle_request(*args)
+            super(GeventWorker, self).handle_request(listener_name, req, sock,
+                                                     addr)
         except gevent.GreenletExit:
             pass
         except SystemExit:
@@ -211,7 +219,7 @@ class PyWSGIHandler(pywsgi.WSGIHandler):
         resp_headers = getattr(self, 'response_headers', {})
         resp = GeventResponse(self.status, resp_headers, self.response_length)
         if hasattr(self, 'headers'):
-            req_headers = [h.split(":", 1) for h in self.headers.headers]
+            req_headers = self.headers.items()
         else:
             req_headers = []
         self.server.log.access(resp, req_headers, self.environ, response_time)

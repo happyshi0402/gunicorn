@@ -99,8 +99,8 @@ class EventletWorker(AsyncWorker):
             return super(EventletWorker, self).is_already_handled(respiter)
 
     def init_process(self):
-        self.patch()
         super(EventletWorker, self).init_process()
+        self.patch()
 
     def handle_quit(self, sig, frame):
         eventlet.spawn(super(EventletWorker, self).handle_quit, sig, frame)
@@ -134,9 +134,12 @@ class EventletWorker(AsyncWorker):
         self.notify()
         try:
             with eventlet.Timeout(self.cfg.graceful_timeout) as t:
-                [a.kill(eventlet.StopServe()) for a in acceptors]
-                [a.wait() for a in acceptors]
+                for a in acceptors:
+                    a.kill(eventlet.StopServe())
+                for a in acceptors:
+                    a.wait()
         except eventlet.Timeout as te:
             if te != t:
                 raise
-            [a.kill() for a in acceptors]
+            for a in acceptors:
+                a.kill()
